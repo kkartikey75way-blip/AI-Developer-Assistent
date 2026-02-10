@@ -1,0 +1,74 @@
+# =========================
+# Dependencies
+# =========================
+node_modules/
+.pnp/
+.pnp.js
+
+# =========================
+# Build outputs
+# =========================
+dist/
+build/
+.out/
+.next/
+coverage/
+
+# =========================
+# Environment variables
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Logs
+# =========================
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+logs/
+*.log
+
+# =========================
+# Runtime / cache
+# =========================
+.vite/
+.cache/
+.eslintcache
+.turbo/
+tsconfig.tsbuildinfo
+
+# =========================
+# Docker
+# =========================
+docker-data/
+data/
+*.pid
+
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Editor / IDE
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+
+# =========================
+# Test artifacts
+# =========================
+cypress/videos/
+cypress/screenshots/
+
+# =========================
+# Misc
+# =========================
+*.local

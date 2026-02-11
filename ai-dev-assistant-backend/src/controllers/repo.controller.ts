@@ -1,21 +1,35 @@
 import { Request, Response } from "express";
-import { ingestQueue } from "../queues/ingest.queue";
+import { repoIngestService } from "../services/repo.service";
+import { RepoRepository } from "../repositories/repo.repo";
+import { catchAsync } from "../utils/catchAsync";
+import { AppError } from "../utils/appError";
+import { AuthenticatedRequest } from "../types/request";
 
-export const ingestRepo = async (
-    req: Request,
-    res: Response
-): Promise<void> => {
-    const { repoUrl } = req.body as { repoUrl: string };
-    const userId = (req as Request & { userId: string }).userId;
+export const createRepo = catchAsync(
+    async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        const { repoUrl } = req.body;
+        const userId = req.userId;
 
-    const job = await ingestQueue.add(
-        "ingest",
-        { userId, repoUrl },
-        {
-            attempts: 3,
-            backoff: { type: "exponential", delay: 2000 }
+        if (!repoUrl) {
+            throw new AppError("Repo URL required", 400);
         }
-    );
 
-    res.json({ queued: true, jobId: job.id });
-};
+        console.log("Repo request received");
+
+        // Ingestion is non-blocking in this implementation
+        repoIngestService.ingestRepo(userId, repoUrl).catch((err) => {
+            console.error("Ingestion failed:", err);
+        });
+
+        res.json({
+            message: "Repo ingestion started"
+        });
+    }
+);
+
+export const getUserRepos = catchAsync(
+    async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        const repos = await RepoRepository.findByUser(req.userId);
+        res.json(repos);
+    }
+);

@@ -1,6 +1,6 @@
 import { Queue } from "bullmq";
-import { redis } from "../config/redis";
+import { redisClient } from "../config/redis";
 
 export const ingestQueue = new Queue("repo-ingest", {
-    connection: redis
+    connection: redisClient
 });

@@ -1,13 +1,22 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ChatMessage } from "../types/chat";
 import { streamChat } from "../services/chatStream.service";
 
-export const useChat = (repoId: string) => {
-    const [messages, setMessages] = useState<ChatMessage[]>([]);
-    const [isStreaming, setIsStreaming] = useState<boolean>(false);
+export const useChat = (repoId: string | null) => {
+    const [messages, setMessages] =
+        useState<ChatMessage[]>([]);
+    const [isStreaming, setIsStreaming] =
+        useState<boolean>(false);
+
+    // Reset chat when repo changes
+    useEffect(() => {
+        setMessages([]);
+    }, [repoId]);
 
     const sendMessage = useCallback(
-        async (question: string) => {
+        async (question: string): Promise<void> => {
+            if (!repoId || isStreaming) return;
+
             const userMessage: ChatMessage = {
                 id: crypto.randomUUID(),
                 role: "user",
@@ -20,27 +29,41 @@ export const useChat = (repoId: string) => {
                 content: ""
             };
 
-            setMessages((prev) => [...prev, userMessage, assistantMessage]);
+            setMessages((prev) => [
+                ...prev,
+                userMessage,
+                assistantMessage
+            ]);
+
             setIsStreaming(true);
 
-            await streamChat({
-                repoId,
-                question,
-                onToken: (token) => {
-                    setMessages((prev) =>
-                        prev.map((m) =>
-                            m.id === assistantMessage.id
-                                ? { ...m, content: m.content + token }
-                                : m
-                        )
-                    );
-                }
-            });
-
-            setIsStreaming(false);
+            try {
+                await streamChat({
+                    repoId,
+                    question,
+                    onToken: (token: string) => {
+                        setMessages((prev) =>
+                            prev.map((m) =>
+                                m.id === assistantMessage.id
+                                    ? {
+                                        ...m,
+                                        content: m.content + token
+                                    }
+                                    : m
+                            )
+                        );
+                    }
+                });
+            } finally {
+                setIsStreaming(false);
+            }
         },
-        [repoId]
+        [repoId, isStreaming]
     );
 
-    return { messages, sendMessage, isStreaming };
+    return {
+        messages,
+        sendMessage,
+        isStreaming
+    };
 };

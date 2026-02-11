@@ -1,9 +1,9 @@
 import { Request, Response, NextFunction } from "express";
 import { RateLimiterRedis } from "rate-limiter-flexible";
-import { redis } from "../config/redis";
+import { redisClient } from "../config/redis";
 
 const limiter = new RateLimiterRedis({
-    storeClient: redis,
+    storeClient: redisClient,
     keyPrefix: "rl",
     points: 60,        // requests
     duration: 60,      // per 60 seconds

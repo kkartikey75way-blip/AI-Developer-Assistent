@@ -1,6 +1,10 @@
 {
   "compilerOptions": {
     "target": "ES2021",
+    "typeRoots": [
+      "./node_modules/@types",
+      "./src/types"
+    ],
     "module": "CommonJS",
     "rootDir": "src",
     "outDir": "dist",
@@ -9,12 +13,10 @@
     "strictNullChecks": true,
     "esModuleInterop": true,
     "moduleResolution": "node",
-    "types": [
-      "node"
-    ],
     "skipLibCheck": true
   },
   "include": [
-    "src"
+    "src",
+    "src/types/express.d.ts"
   ]
 }

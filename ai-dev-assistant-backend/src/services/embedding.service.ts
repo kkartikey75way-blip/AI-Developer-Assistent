@@ -1,12 +1,34 @@
-import { openrouter } from "../config/openrouter";
+import axios from "axios";
+import { env } from "../config/env";
 
-export class EmbeddingService {
-    static async embed(text: string): Promise<number[]> {
-        const res = await openrouter.embeddings.create({
-            model: "text-embedding-3-small",
-            input: text
-        });
+interface EmbeddingResponse {
+    data: Array<{
+        embedding: number[];
+    }>;
+}
 
-        return res.data[0].embedding;
+class EmbeddingService {
+    async createEmbedding(
+        text: string
+    ): Promise<number[]> {
+        const response =
+            await axios.post<EmbeddingResponse>(
+                "https://openrouter.ai/api/v1/embeddings",
+                {
+                    model: "text-embedding-3-small",
+                    input: text
+                },
+                {
+                    headers: {
+                        Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
+                        "Content-Type": "application/json"
+                    }
+                }
+            );
+
+        return response.data.data[0].embedding;
     }
 }
+
+export const embeddingService =
+    new EmbeddingService();

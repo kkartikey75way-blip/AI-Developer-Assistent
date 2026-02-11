@@ -1,13 +1,15 @@
-import { Request, Response, NextFunction } from "express";
+import { Response, NextFunction } from "express";
 import { verifyAccessToken } from "../utils/jwt";
+import { AuthenticatedRequest } from "../types/request";
 
 export const authMiddleware = (
-    req: Request,
+    req: any,
     res: Response,
     next: NextFunction
 ): void => {
     try {
         const header = req.headers.authorization;
+
         if (!header?.startsWith("Bearer ")) {
             res.status(401).json({ message: "Unauthorized" });
             return;
@@ -16,9 +18,13 @@ export const authMiddleware = (
         const token = header.replace("Bearer ", "");
         const payload = verifyAccessToken(token);
 
-        (req as Request & { userId: string }).userId = payload.userId;
+        // attach userId safely
+        (req as AuthenticatedRequest).userId = payload.userId;
+
         next();
     } catch {
-        res.status(401).json({ message: "Invalid or expired token" });
+        res.status(401).json({
+            message: "Invalid or expired token"
+        });
     }
 };

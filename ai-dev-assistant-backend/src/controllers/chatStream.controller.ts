@@ -1,23 +1,21 @@
 import { Request, Response } from "express";
 import { initSSE, sendSSE, endSSE } from "../utils/sse";
 import { ChatStreamService } from "../services/chatStream.service";
+import { catchAsync } from "../utils/catchAsync";
+import { StreamChatInput } from "../schemas/chat.schema";
 
-export const streamAskRepo = async (
-    req: Request,
-    res: Response
-): Promise<void> => {
-    initSSE(res);
+export const streamAskRepo = catchAsync(
+    async (req: Request, res: Response): Promise<void> => {
+        const { repoId, question } = req.body as StreamChatInput;
 
-    const { repoId, question } = req.body as {
-        repoId: string;
-        question: string;
-    };
+        initSSE(res);
 
-    await ChatStreamService.streamRepo({
-        repoId,
-        question,
-        onToken: (token) => sendSSE(res, { token })
-    });
+        await ChatStreamService.streamRepo({
+            repoId,
+            question,
+            onToken: (token) => sendSSE(res, { token })
+        });
 
-    endSSE(res);
-};
+        endSSE(res);
+    }
+);

@@ -1,13 +1,19 @@
 import { Router } from "express";
-import { githubAuth, refreshToken, googleAuthRedirect, googleAuthCallback } from "../controllers/auth.controller";
+import {
+    googleAuthRedirect,
+    googleAuthCallback,
+    refreshToken,
+    logout
+} from "../controllers/auth.controller";
+import { validate } from "../middlewares/validate.middleware";
+import { googleAuthSchema, refreshTokenSchema } from "../schemas/auth.schema";
+import { authMiddleware } from "../middlewares/auth.middleware";
 
 const router = Router();
 
-router.post("/github", githubAuth);
-router.post("/refresh", refreshToken);
-
 router.get("/google", googleAuthRedirect);
-router.get("/google/callback", googleAuthCallback);
-
+router.get("/google/callback", validate(googleAuthSchema), googleAuthCallback);
+router.post("/refresh", validate(refreshTokenSchema), refreshToken);
+router.post("/logout", authMiddleware, logout);
 
 export default router;

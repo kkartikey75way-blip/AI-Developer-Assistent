@@ -1,49 +1,71 @@
 import { OAuth2Client } from "google-auth-library";
-import { UserRepository } from "../repositories/user.repo";
-import { signAccessToken, signRefreshToken } from "../utils/jwt";
+import axios from "axios";
+import { env } from "../config/env";
+import { UserModel } from "../models/user.model";
+import { generateTokens } from "../utils/jwt";
+import { RefreshTokenRepository } from "../repositories/refreshToken.repo";
 
 const client = new OAuth2Client(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_CALLBACK_URL
+    env.GOOGLE_CLIENT_ID,
+    env.GOOGLE_CLIENT_SECRET,
+    env.GOOGLE_REDIRECT_URI
 );
 
 export class GoogleAuthService {
+
     static getAuthUrl(): string {
         return client.generateAuthUrl({
             access_type: "offline",
-            scope: ["profile", "email"],
+            scope: ["openid", "email", "profile"],
             prompt: "consent"
         });
     }
 
-    static async handleCallback(code: string): Promise<{
-        accessToken: string;
-        refreshToken: string;
-    }> {
+    static async handleCallback(code: string) {
+        console.log("Processing Google Auth callback with code:", code.substring(0, 10) + "...");
+
         const { tokens } = await client.getToken(code);
+        console.log("Successfully retrieved Google tokens");
         client.setCredentials(tokens);
 
         const ticket = await client.verifyIdToken({
-            idToken: tokens.id_token as string,
-            audience: process.env.GOOGLE_CLIENT_ID
+            idToken: tokens.id_token!,
+            audience: env.GOOGLE_CLIENT_ID
         });
+        console.log("Verified ID token");
 
         const payload = ticket.getPayload();
-        if (!payload?.email) {
-            throw new Error("Google authentication failed");
+        console.log("Payload email:", payload?.email);
+
+        if (!payload?.email || !payload.sub) {
+            throw new Error("Invalid Google payload");
         }
 
-        const user = await UserRepository.findOrCreate(
-            payload.email,
-            `google_${payload.sub}`
-        );
+        // Check if user exists
+        let user = await UserModel.findOne({
+            provider: "google",
+            providerId: payload.sub
+        });
+        console.log("User found:", !!user);
 
-        const userId = user._id.toString();
+        if (!user) {
+            user = await UserModel.create({
+                email: payload.email,
+                provider: "google",
+                providerId: payload.sub
+            });
+        }
 
-        return {
-            accessToken: signAccessToken({ userId }),
-            refreshToken: signRefreshToken({ userId })
-        };
+        const jwtTokens = generateTokens(user._id.toString());
+        console.log("Generated JWT tokens");
+
+        await RefreshTokenRepository.create({
+            userId: user._id.toString(),
+            token: jwtTokens.refreshToken,
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        });
+        console.log("Created refresh token in repository");
+
+        return jwtTokens;
     }
 }

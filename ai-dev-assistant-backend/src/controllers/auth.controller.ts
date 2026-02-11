@@ -1,30 +1,14 @@
 import { Request, Response } from "express";
-import { githubAuthSchema } from "../schemas/auth.schema";
-import { authService } from "../services/auth.service";
 import { GoogleAuthService } from "../services/googleAuth.service";
+import { verifyRefreshToken } from "../utils/jwt";
+import { authService } from "../services/auth.service";
+import { RefreshTokenRepository } from "../repositories/refreshToken.repo";
+import { env } from "../config/env";
+import { catchAsync } from "../utils/catchAsync";
+import { AppError } from "../utils/appError";
+import { RefreshTokenInput } from "../schemas/auth.schema";
+import { AuthenticatedRequest } from "../types/request";
 
-export const githubAuth = async (req: Request, res: Response): Promise<void> => {
-    const dto = githubAuthSchema.parse(req.body);
-    const result = await authService.githubLogin(dto.code);
-
-    res.json(result);
-};
-export const refreshToken = async (
-    req: Request,
-    res: Response
-): Promise<void> => {
-    const { userId, refreshToken } = req.body as {
-        userId: string;
-        refreshToken: string;
-    };
-
-    const tokens = await authService.refreshTokens(
-        userId,
-        refreshToken
-    );
-
-    res.json(tokens);
-};
 export const googleAuthRedirect = (
     _req: Request,
     res: Response
@@ -33,14 +17,47 @@ export const googleAuthRedirect = (
     res.redirect(url);
 };
 
-export const googleAuthCallback = async (
-    req: Request,
-    res: Response
-): Promise<void> => {
-    const code = req.query.code as string;
+export const googleAuthCallback = catchAsync(
+    async (req: Request, res: Response): Promise<void> => {
+        console.log("googleAuthCallback reached");
+        const code = req.query.code as string;
 
-    const tokens = await GoogleAuthService.handleCallback(code);
+        const tokens = await GoogleAuthService.handleCallback(code);
 
-    // for now return JSON (frontend can store tokens)
-    res.json(tokens);
-};
+        res.redirect(
+            `${env.FRONTEND_URL}/oauth-success?accessToken=${tokens.accessToken}&refreshToken=${tokens.refreshToken}`
+        );
+    }
+);
+
+export const refreshToken = catchAsync(
+    async (req: Request, res: Response): Promise<void> => {
+        const { refreshToken } = req.body as RefreshTokenInput;
+
+        try {
+            const payload = verifyRefreshToken(refreshToken);
+
+            const tokens = await authService.refreshTokens(
+                payload.userId,
+                refreshToken
+            );
+
+            res.json(tokens);
+        } catch {
+            throw new AppError(
+                "Invalid or expired refresh token",
+                401
+            );
+        }
+    }
+);
+
+export const logout = catchAsync(
+    async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        const userId = req.userId;
+
+        await RefreshTokenRepository.revokeAll(userId);
+
+        res.json({ message: "Logged out successfully" });
+    }
+);

@@ -1,21 +1,28 @@
 import { Schema, model, Document } from "mongoose";
 
 export interface RefreshTokenDocument extends Document {
-    readonly userId: string;
-    readonly tokenHash: string;
-    readonly expiresAt: Date;
-    readonly revoked: boolean;
+    userId: string;
+    token: string;
+    expiresAt: Date;
 }
 
-const refreshTokenSchema = new Schema<RefreshTokenDocument>(
-    {
-        userId: { type: String, required: true, index: true },
-        tokenHash: { type: String, required: true },
-        expiresAt: { type: Date, required: true },
-        revoked: { type: Boolean, default: false }
+const refreshTokenSchema = new Schema<RefreshTokenDocument>({
+    userId: {
+        type: String,
+        required: true,
+        index: true
     },
-    { timestamps: true }
-);
+    token: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    expiresAt: {
+        type: Date,
+        required: true,
+        index: { expires: 0 } // auto-delete when expired
+    }
+});
 
 export const RefreshTokenModel = model<RefreshTokenDocument>(
     "RefreshToken",

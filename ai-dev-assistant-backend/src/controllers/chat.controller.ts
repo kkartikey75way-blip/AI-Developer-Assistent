@@ -1,19 +1,28 @@
 import { Request, Response } from "express";
 import { ChatService } from "../services/chat.service";
+import { catchAsync } from "../utils/catchAsync";
+import { StreamChatInput } from "../schemas/chat.schema";
+import { initSSE, sendSSE, endSSE } from "../utils/sse";
 
-export const askRepo = async (
-    req: Request,
-    res: Response
-): Promise<void> => {
-    const { repoId, question } = req.body as {
-        repoId: string;
-        question: string;
-    };
+export const streamChat = catchAsync(
+    async (req: Request, res: Response): Promise<void> => {
+        const { repoId, question } = req.body as StreamChatInput;
 
-    const answer = await ChatService.askRepo({
-        repoId,
-        question
-    });
+        initSSE(res);
 
-    res.json({ answer });
-};
+        const stream = await ChatService.streamChat({
+            repoId,
+            question
+        });
+
+        for await (const chunk of stream) {
+            const token = chunk.choices[0]?.delta?.content ?? "";
+
+            if (token) {
+                sendSSE(res, { token });
+            }
+        }
+
+        endSSE(res);
+    }
+);

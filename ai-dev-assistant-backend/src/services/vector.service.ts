@@ -1,42 +1,95 @@
-import { chroma } from "../config/vector";
-import { EmbeddingService } from "./embedding.service";
+import axios from "axios";
+import { env } from "../config/env";
+import { embeddingService } from "./embedding.service";
 
-export class VectorService {
-    static async upsert(params: {
+class VectorService {
+    private readonly collectionName = "repo_documents";
+    private collectionId?: string;
+
+    private get baseUrl() {
+        return `${env.CHROMA_URL}/api/v2/tenants/default_tenant/databases/default_database`;
+    }
+
+    async ensureCollection(): Promise<void> {
+        if (this.collectionId) return;
+
+        const res = await axios.get<any>(`${this.baseUrl}/collections`);
+        const collections = res.data.collections || res.data;
+
+        const existing = (collections as any[]).find(
+            (c: any) => c.name === this.collectionName
+        );
+
+        if (existing) {
+            this.collectionId = existing.id;
+            return;
+        }
+
+        const createRes = await axios.post<any>(
+            `${this.baseUrl}/collections`,
+            { name: this.collectionName }
+        );
+
+        this.collectionId = createRes.data.id;
+    }
+
+    async upsert(params: {
         repoId: string;
         documents: { id: string; content: string }[];
     }): Promise<void> {
-        const collection = await chroma.getOrCreateCollection({
-            name: `repo-${params.repoId}`
-        });
 
-        for (const doc of params.documents) {
-            const embedding = await EmbeddingService.embed(doc.content);
+        await this.ensureCollection();
 
-            await collection.upsert({
-                ids: [doc.id],
-                embeddings: [embedding],
-                documents: [doc.content]
-            });
-        }
+        const embeddings = await Promise.all(
+            params.documents.map(doc =>
+                embeddingService.createEmbedding(doc.content)
+            )
+        );
+
+        await axios.post(
+            `${this.baseUrl}/collections/${this.collectionId}/add`,
+            {
+                ids: params.documents.map(d => d.id),
+                embeddings,
+                documents: params.documents.map(d => d.content),
+                metadatas: params.documents.map(() => ({
+                    repoId: params.repoId
+                }))
+            }
+        );
     }
 
-    static async search(params: {
-        repoId: string;
-        query: string;
-        topK?: number;
-    }): Promise<string[]> {
-        const collection = await chroma.getCollection({
-            name: `repo-${params.repoId}`
-        });
+    async query(
+        embedding: number[],
+        repoId: string,
+        topK = 5
+    ): Promise<string[]> {
 
-        const queryEmbedding = await EmbeddingService.embed(params.query);
+        await this.ensureCollection();
 
-        const result = await collection.query({
-            queryEmbeddings: [queryEmbedding],
-            nResults: params.topK ?? 5
-        });
+        const response = await axios.post<any>(
+            `${this.baseUrl}/collections/${this.collectionId}/query`,
+            {
+                query_embeddings: [embedding],
+                n_results: topK,
+                where: { repoId }
+            }
+        );
 
-        return result.documents.flat().map((doc) => doc as string);
+        return response.data?.documents?.[0] ?? [];
+    }
+
+    async deleteByRepo(repoId: string): Promise<void> {
+
+        await this.ensureCollection();
+
+        await axios.post(
+            `${this.baseUrl}/collections/${this.collectionId}/delete`,
+            {
+                where: { repoId }
+            }
+        );
     }
 }
+
+export const vectorService = new VectorService();

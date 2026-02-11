@@ -1,5 +1,11 @@
-import { Request } from "express";
+import { Request, Response } from "express";
 
-export interface AuthRequest extends Request {
-    userId: string;
-}
+export const createRepo = async (
+    req: Request,
+    res: Response
+): Promise<void> => {
+
+    const { repoUrl } = req.body;
+    const userId = req.userId;
+
+};
